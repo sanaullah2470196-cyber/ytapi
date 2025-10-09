@@ -182,6 +182,12 @@ JOB_EXPIRATION=$(prompt_duration "Job expiration (metadata TTL)" "24h")
 HEALTH_CHECK_INTERVAL=$(prompt_duration "Health check interval" "30s")
 FAST_PATH_WAIT=$(prompt_duration "Fast-path wait (for quick jobs)" "8s")
 
+# External tool timeouts
+echo "yt-dlp and ffmpeg timeouts help long-video reliability."
+YTDLP_TIMEOUT=$(prompt_duration "yt-dlp metadata timeout" "120s")
+FFMPEG_MIN_TIMEOUT=$(prompt_duration "ffmpeg minimum timeout" "20m")
+FFMPEG_MAX_TIMEOUT=$(prompt_duration "ffmpeg maximum timeout" "90m")
+
 # Retry backoff
 echo
 echo "=== Retry Backoff ==="
@@ -305,6 +311,9 @@ MAX_JOB_RETRIES=3
 JOB_EXPIRATION=${JOB_EXPIRATION}
 HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL}
 FAST_PATH_WAIT=${FAST_PATH_WAIT}
+YTDLP_TIMEOUT=${YTDLP_TIMEOUT}
+FFMPEG_MIN_TIMEOUT=${FFMPEG_MIN_TIMEOUT}
+FFMPEG_MAX_TIMEOUT=${FFMPEG_MAX_TIMEOUT}
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 REQUIRE_API_KEY=${REQUIRE_API_KEY_ANS}
 API_KEYS=${API_KEYS}
