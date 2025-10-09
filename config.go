@@ -39,6 +39,13 @@ var (
 	PerIPBurst         = 20
 	MaxURLLength       = 2048
 
+    // External tool timeouts
+    // Timeout for yt-dlp metadata fetch
+    YTDLPTimeout       = 90 * time.Second
+    // ffmpeg conversion timeout bounds; actual timeout is dynamic per video
+    FFmpegMinTimeout   = 15 * time.Minute
+    FFmpegMaxTimeout   = 60 * time.Minute
+
 	// Retry/backoff
 	BackoffBaseSeconds = 5
 	BackoffMaxSeconds  = 60
@@ -113,4 +120,9 @@ func InitConfigFromEnv() {
 
 	AdminUser = envString("ADMIN_USER", AdminUser)
 	AdminPass = envString("ADMIN_PASS", AdminPass)
+
+    // External tool timeouts
+    YTDLPTimeout = envDuration("YTDLP_TIMEOUT", YTDLPTimeout)
+    FFmpegMinTimeout = envDuration("FFMPEG_MIN_TIMEOUT", FFmpegMinTimeout)
+    FFmpegMaxTimeout = envDuration("FFMPEG_MAX_TIMEOUT", FFmpegMaxTimeout)
 }

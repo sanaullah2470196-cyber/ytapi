@@ -40,8 +40,8 @@ func enableCORS(w http.ResponseWriter) {
         originHeader = AllowedOrigins
     }
     w.Header().Set("Access-Control-Allow-Origin", originHeader)
-    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+    w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
     w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 

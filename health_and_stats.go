@@ -83,27 +83,50 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Missing job ID", http.StatusBadRequest)
         return
     }
+    // Load job from memory or Redis if available
     var job *ConversionJob
     jobStore.RLock()
     j, exists := jobStore.jobs[jobID]
     jobStore.RUnlock()
     if exists {
         job = j
-    } else {
-        if rj, err := getJobFromRedis(jobID); err == nil && rj != nil {
-            job = rj
-        }
+    } else if rj, err := getJobFromRedis(jobID); err == nil && rj != nil {
+        job = rj
     }
-    if job == nil {
-        http.Error(w, "Job not found", http.StatusNotFound)
+
+    // Prevent deletion during active download
+    downloadTrackers.Lock()
+    inProg := downloadTrackers.inProgress[jobID]
+    downloadTrackers.Unlock()
+    if inProg > 0 {
+        http.Error(w, "Download in progress; try again later", http.StatusConflict)
         return
     }
-    if job.FilePath != "" {
+
+    // Remove file (best effort)
+    if job != nil && job.FilePath != "" {
         _ = os.Remove(job.FilePath)
+    } else {
+        _ = os.Remove(filepath.Join("downloads", jobID+".mp3"))
     }
+
+    // Remove from memory store
     jobStore.Lock()
     delete(jobStore.jobs, jobID)
     jobStore.Unlock()
+
+    // Remove from Redis and URL map
+    deleteJobFromRedis(jobID)
+    if job != nil && job.URL != "" {
+        removeURLMapping(job.URL)
+    }
+
+    // Clear download trackers
+    downloadTrackers.Lock()
+    delete(downloadTrackers.inProgress, jobID)
+    delete(downloadTrackers.scheduled, jobID)
+    downloadTrackers.Unlock()
+
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]string{"deleted": jobID})
 }

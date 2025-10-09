@@ -111,6 +111,9 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
 
     saveJobToRedis(job)
     _ = saveURLMapping(req.URL, jobID)
+    if req.IdempotencyKey != "" {
+        _ = saveIdempotencyKey(req.IdempotencyKey, jobID)
+    }
     atomic.AddInt64(&queuedJobs, 1)
 
     resultCh := registerJobWaiter(jobID)
