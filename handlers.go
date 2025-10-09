@@ -51,6 +51,7 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
         }
     }
 
+    logInfof("extract_received job_id=~pending url=%s", req.URL)
     // Idempotency key check
     if req.IdempotencyKey != "" {
         if jid, err := getJobIDByIdempotency(req.IdempotencyKey); err == nil && jid != "" {
@@ -115,6 +116,7 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
         _ = saveIdempotencyKey(req.IdempotencyKey, jobID)
     }
     atomic.AddInt64(&queuedJobs, 1)
+    logInfof("queued job_id=%s queue_len=%d", jobID, atomic.LoadInt64(&queuedJobs))
 
     resultCh := registerJobWaiter(jobID)
 

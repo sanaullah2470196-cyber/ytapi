@@ -53,6 +53,9 @@ var (
 	// Admin UI credentials
 	AdminUser = ""
 	AdminPass = ""
+
+    // Logging
+    ColorLogs = true
 )
 
 func envInt(key string, def int) int {
@@ -125,4 +128,7 @@ func InitConfigFromEnv() {
     YTDLPTimeout = envDuration("YTDLP_TIMEOUT", YTDLPTimeout)
     FFmpegMinTimeout = envDuration("FFMPEG_MIN_TIMEOUT", FFmpegMinTimeout)
     FFmpegMaxTimeout = envDuration("FFMPEG_MAX_TIMEOUT", FFmpegMaxTimeout)
+
+    // Logging
+    ColorLogs = envString("COLOR_LOGS", "true") == "true"
 }

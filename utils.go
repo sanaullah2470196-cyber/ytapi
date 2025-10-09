@@ -40,6 +40,47 @@ func calculateSuccessRate() float64 {
     return float64(completedJobs) / float64(total)
 }
 
+// colored logging helpers
+const (
+    colorReset = "\033[0m"
+    colorGreen = "\033[32m"
+    colorYellow = "\033[33m"
+    colorRed = "\033[31m"
+    colorGray = "\033[90m"
+)
+
+func logInfof(format string, v ...interface{}) {
+    if ColorLogs {
+        log.Printf(colorGreen+"[INFO] "+colorReset+format, v...)
+        return
+    }
+    log.Printf("[INFO] "+format, v...)
+}
+
+func logWarnf(format string, v ...interface{}) {
+    if ColorLogs {
+        log.Printf(colorYellow+"[WARN] "+colorReset+format, v...)
+        return
+    }
+    log.Printf("[WARN] "+format, v...)
+}
+
+func logErrorf(format string, v ...interface{}) {
+    if ColorLogs {
+        log.Printf(colorRed+"[ERROR] "+colorReset+format, v...)
+        return
+    }
+    log.Printf("[ERROR] "+format, v...)
+}
+
+func logDebugf(format string, v ...interface{}) {
+    if ColorLogs {
+        log.Printf(colorGray+"[DEBUG] "+colorReset+format, v...)
+        return
+    }
+    log.Printf("[DEBUG] "+format, v...)
+}
+
 func getAvgProcessingTime() float64 {
     c := completedJobs
     if c <= 0 {

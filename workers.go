@@ -10,7 +10,7 @@ import (
 )
 
 func startWorker(workerID int) {
-    fmt.Printf("Worker %d started.\n", workerID)
+    logInfof("worker_startup worker_id=%d", workerID)
     for job := range jobQueue {
         processJob(job, workerID)
     }
@@ -20,7 +20,7 @@ func processJob(job *ConversionJob, workerID int) {
     atomic.AddInt64(&activeJobs, 1)
     atomic.AddInt64(&queuedJobs, -1)
 
-    log.Printf("Worker %d: Processing job %s for URL: %s\n", workerID, job.ID, job.URL)
+    logInfof("worker_start job_id=%s worker_id=%d url=%s", job.ID, workerID, job.URL)
 
     updateJobStatus(job, StatusProcessing, "")
     job.StartedAt = time.Now()
@@ -35,13 +35,17 @@ func processJob(job *ConversionJob, workerID int) {
     }
     outputPath := filepath.Join(outputDir, job.ID+".mp3")
 
+    logInfof("ytdlp_fetch_start job_id=%s", job.ID)
+    t0 := time.Now()
     audioURL, meta, err := getAudioStreamFromYTDLP(job.URL)
     if err != nil {
+        logErrorf("ytdlp_error job_id=%s err=%v", job.ID, err)
         handleJobFailure(job, err, "yt-dlp stream extraction failed")
         atomic.AddInt64(&activeJobs, -1)
         atomic.AddInt64(&failedJobs, 1)
         return
     }
+    logInfof("ytdlp_fetch_done job_id=%s duration_ms=%d format_ext=%s abr=%d", job.ID, time.Since(t0).Milliseconds(), meta.Ext, meta.Abr)
 
     // Determine a sensible timeout for ffmpeg based on metadata duration
     ffTimeout := FFmpegMinTimeout
@@ -50,12 +54,16 @@ func processJob(job *ConversionJob, workerID int) {
         calc := time.Duration(meta.Duration*2)*time.Second + 3*time.Minute
         if calc > ffTimeout { ffTimeout = calc }
     }
+    logInfof("ffmpeg_start job_id=%s codec=libmp3lame ar=44100 bitrate=192k timeout=%s", job.ID, ffTimeout)
+    t1 := time.Now()
     if err := convertStreamToMP3(audioURL, outputPath, ffTimeout); err != nil {
+        logErrorf("ffmpeg_error job_id=%s err=%v", job.ID, err)
         handleJobFailure(job, err, "ffmpeg conversion failed")
         atomic.AddInt64(&activeJobs, -1)
         atomic.AddInt64(&failedJobs, 1)
         return
     }
+    logInfof("ffmpeg_done job_id=%s duration_ms=%d output=%s", job.ID, time.Since(t1).Milliseconds(), outputPath)
 
     job.Status = StatusCompleted
     job.CompletedAt = time.Now()
@@ -71,5 +79,5 @@ func processJob(job *ConversionJob, workerID int) {
     atomic.AddInt64(&totalProcessingTimeNs, job.CompletedAt.Sub(job.StartedAt).Nanoseconds())
 
     notifyJobCompletion(job)
-    log.Printf("Worker %d: Job %s completed successfully. Download: %s\n", workerID, job.ID, job.DownloadURL)
+    logInfof("job_completed job_id=%s total_ms=%d download_url=%s", job.ID, job.CompletedAt.Sub(job.CreatedAt).Milliseconds(), job.DownloadURL)
 }
