@@ -43,7 +43,14 @@ func processJob(job *ConversionJob, workerID int) {
         return
     }
 
-    if err := convertStreamToMP3(audioURL, outputPath); err != nil {
+    // Determine a sensible timeout for ffmpeg based on metadata duration
+    ffTimeout := FFmpegMinTimeout
+    if meta != nil && meta.Duration > 0 {
+        // 2x duration + 3 minutes buffer, within [FFmpegMinTimeout, FFmpegMaxTimeout]
+        calc := time.Duration(meta.Duration*2)*time.Second + 3*time.Minute
+        if calc > ffTimeout { ffTimeout = calc }
+    }
+    if err := convertStreamToMP3(audioURL, outputPath, ffTimeout); err != nil {
         handleJobFailure(job, err, "ffmpeg conversion failed")
         atomic.AddInt64(&activeJobs, -1)
         atomic.AddInt64(&failedJobs, 1)

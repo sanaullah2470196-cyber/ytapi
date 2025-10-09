@@ -134,7 +134,7 @@ echo "App rate limit (req/s): global requests per second this instance accepts."
 echo "App rate burst: short spikes allowed above the steady rate."
 WORKER_POOL_SIZE=$(prompt_int "Worker pool size" "20")
 JOB_QUEUE_CAPACITY=$(prompt_int "Job queue capacity" "1000")
-REQUESTS_PER_SECOND=$(prompt_int "App rate limit (req/s)" "100")
+REQUESTS_PER_SECOND=$(prompt_int "App rate limit (req/s) (cap admission; start modestly)" "100")
 BURST_SIZE=$(prompt_int "App rate burst" "200")
 
 # Abuse protection & auth
@@ -155,7 +155,7 @@ PER_IP_BURST=$(prompt_int "Per-IP burst" "20")
 # Networking / CORS
 echo
 echo "=== CORS (Cross-Origin Resource Sharing) ==="
-echo "Allowed origins: which websites can call your API from the browser. Use * to allow all, or list domains."
+echo "Allowed origins: * or comma-separated list. If list, server echoes matching Origin only."
 ALLOWED_ORIGINS=$(read_with_default "Allowed origins for CORS (comma or *)" "*")
 
 # Redis
@@ -181,6 +181,12 @@ echo "Fast-path wait: time the /extract endpoint waits for quick conversions bef
 JOB_EXPIRATION=$(prompt_duration "Job expiration (metadata TTL)" "24h")
 HEALTH_CHECK_INTERVAL=$(prompt_duration "Health check interval" "30s")
 FAST_PATH_WAIT=$(prompt_duration "Fast-path wait (for quick jobs)" "8s")
+
+# External tool timeouts
+echo "yt-dlp and ffmpeg timeouts help long-video reliability."
+YTDLP_TIMEOUT=$(prompt_duration "yt-dlp metadata timeout" "120s")
+FFMPEG_MIN_TIMEOUT=$(prompt_duration "ffmpeg minimum timeout" "20m")
+FFMPEG_MAX_TIMEOUT=$(prompt_duration "ffmpeg maximum timeout" "90m")
 
 # Retry backoff
 echo
@@ -248,6 +254,7 @@ server {
         limit_req zone=download_limit burst=10 nodelay;
         proxy_pass http://127.0.0.1:8080;
     }
+    location /nginx_status { stub_status; allow 127.0.0.1; deny all; }
     location /metrics { allow 127.0.0.1; deny all; proxy_pass http://127.0.0.1:8080; }
     location / { proxy_pass http://127.0.0.1:8080; }
 }
@@ -305,6 +312,9 @@ MAX_JOB_RETRIES=3
 JOB_EXPIRATION=${JOB_EXPIRATION}
 HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL}
 FAST_PATH_WAIT=${FAST_PATH_WAIT}
+YTDLP_TIMEOUT=${YTDLP_TIMEOUT}
+FFMPEG_MIN_TIMEOUT=${FFMPEG_MIN_TIMEOUT}
+FFMPEG_MAX_TIMEOUT=${FFMPEG_MAX_TIMEOUT}
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 REQUIRE_API_KEY=${REQUIRE_API_KEY_ANS}
 API_KEYS=${API_KEYS}

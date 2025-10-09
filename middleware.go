@@ -11,6 +11,7 @@ import (
 func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         if rateLimiter != nil && !rateLimiter.Allow() {
+            w.Header().Set("Retry-After", "1")
             http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
             return
         }
@@ -27,6 +28,7 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
         }
         ipLimiters.Unlock()
         if !lim.Allow() {
+            w.Header().Set("Retry-After", "1")
             http.Error(w, "Per-IP rate limit exceeded", http.StatusTooManyRequests)
             return
         }
@@ -34,14 +36,30 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
     }
 }
 
-func enableCORS(w http.ResponseWriter) {
+func enableCORS(w http.ResponseWriter, r *http.Request) {
     originHeader := "*"
+    reqOrigin := r.Header.Get("Origin")
     if AllowedOrigins != "*" {
-        originHeader = AllowedOrigins
+        // support comma-separated list of allowed origins
+        allowed := map[string]struct{}{}
+        for _, o := range strings.Split(AllowedOrigins, ",") {
+            o = strings.TrimSpace(o)
+            if o != "" {
+                allowed[o] = struct{}{}
+            }
+        }
+        if _, ok := allowed[reqOrigin]; ok && reqOrigin != "" {
+            originHeader = reqOrigin
+        } else {
+            originHeader = ""
+        }
+        w.Header().Set("Vary", "Origin")
     }
-    w.Header().Set("Access-Control-Allow-Origin", originHeader)
-    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    if originHeader != "" {
+        w.Header().Set("Access-Control-Allow-Origin", originHeader)
+    }
+    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+    w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
     w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 

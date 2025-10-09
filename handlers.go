@@ -16,7 +16,7 @@ import (
 )
 
 func handleExtract(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
 
     if r.Method == http.MethodOptions {
         w.WriteHeader(http.StatusOK)
@@ -111,6 +111,9 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
 
     saveJobToRedis(job)
     _ = saveURLMapping(req.URL, jobID)
+    if req.IdempotencyKey != "" {
+        _ = saveIdempotencyKey(req.IdempotencyKey, jobID)
+    }
     atomic.AddInt64(&queuedJobs, 1)
 
     resultCh := registerJobWaiter(jobID)
@@ -152,12 +155,13 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
         delete(jobStore.jobs, jobID)
         jobStore.Unlock()
         atomic.AddInt64(&queuedJobs, -1)
+        w.Header().Set("Retry-After", "1")
         http.Error(w, "Server busy, please try again later.", http.StatusServiceUnavailable)
     }
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
 
     if r.Method == http.MethodOptions {
         w.WriteHeader(http.StatusOK)
@@ -206,7 +210,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDownload(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
 
     if r.Method == http.MethodOptions {
         w.WriteHeader(http.StatusOK)
@@ -304,7 +308,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 
 // Simple docs pages
 func handleDocs(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
     if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
     w.Header().Set("Content-Type", "text/html; charset=utf-8")
     io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>YT MP3 API Docs</title><style>body{font-family:sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;}</style></head><body>
@@ -330,7 +334,7 @@ func handleDocs(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDocsFrontend(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
     if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
     w.Header().Set("Content-Type", "text/html; charset=utf-8")
     io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>Frontend Integration</title><style>body{font-family:sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;}</style></head><body>

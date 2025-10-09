@@ -32,7 +32,7 @@ type ytdlpInfo struct {
 }
 
 func getAudioStreamFromYTDLP(videoURL string) (string, *Metadata, error) {
-    ctxTimeout, cancel := context.WithTimeout(ctx, 45*time.Second)
+    ctxTimeout, cancel := context.WithTimeout(ctx, YTDLPTimeout)
     defer cancel()
 
     cmd := exec.CommandContext(ctxTimeout, "yt-dlp", "-J", "--no-warnings", "--skip-download", videoURL)
@@ -106,14 +106,27 @@ func getAudioStreamFromYTDLP(videoURL string) (string, *Metadata, error) {
     return best.URL, meta, nil
 }
 
-func convertStreamToMP3(audioURL, outputPath string) error {
-    ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Minute)
+func convertStreamToMP3(audioURL, outputPath string, timeout time.Duration) error {
+    if timeout <= 0 {
+        timeout = FFmpegMinTimeout
+    }
+    if timeout > FFmpegMaxTimeout {
+        timeout = FFmpegMaxTimeout
+    }
+    ctxTimeout, cancel := context.WithTimeout(ctx, timeout)
     defer cancel()
 
     args := []string{
         "-y",
         "-loglevel", "error",
         "-nostdin",
+        // Network resilience for long streams
+        "-reconnect", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_on_network_error", "1",
+        "-reconnect_delay_max", "10",
+        // Read/write timeout in microseconds (e.g., 60s)
+        "-rw_timeout", "60000000",
         "-i", audioURL,
         "-vn",
         "-acodec", "libmp3lame",
