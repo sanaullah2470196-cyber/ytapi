@@ -30,10 +30,15 @@ This is a high-traffic optimized version of the YouTube to MP3 conversion API de
 
 ## 📊 Monitoring & Metrics
 
-### Available Endpoints
-- `GET /health` - Server health status
-- `GET /metrics` - JSON metrics (for Prometheus, use exporter or update scrape)
-- `GET /stats` - Application statistics
+### API Endpoints
+- `POST /extract` - Start conversion. Body: `{ url, idempotency_key?, callback_url? }`
+- `GET /status/{job_id}` - Check job status.
+- `GET /download/{job_id}.mp3` - Download MP3 (Range supported).
+- `DELETE /delete/{job_id}` - Delete job/file (API key required).
+- `GET /health` - Server health status.
+- `GET /metrics` - JSON metrics (human/debug).
+- `GET /metrics/prom` - Prometheus exposition format (for Prometheus scrapes).
+- `GET /stats` - Application statistics.
 
 ### Key Metrics
 - Active jobs count
@@ -42,6 +47,8 @@ This is a high-traffic optimized version of the YouTube to MP3 conversion API de
 - Processing times
 - Memory usage
 - Uptime
+- Queue fill ratio (`ytmp3_queue_fill_ratio`)
+- Queue over 80% flag (`ytmp3_queue_over_80`)
 
 ## 🐳 Deployment Options
 
@@ -86,6 +93,20 @@ BURST_SIZE=200
 
 # Job Expiration
 JOB_EXPIRATION_HOURS=24
+
+# External Tool Timeouts (long-video reliability)
+YTDLP_TIMEOUT=120s
+FFMPEG_MIN_TIMEOUT=20m
+FFMPEG_MAX_TIMEOUT=90m
+
+# CORS and Auth
+ALLOWED_ORIGINS="*"               # or comma-separated; server echoes matching Origin
+REQUIRE_API_KEY=false              # true to enforce X-API-Key on protected routes
+API_KEYS="key1,key2"             # comma-separated keys
+PER_IP_RPS=10
+PER_IP_BURST=20
+ADMIN_USER=""                    # set to enable /admin
+ADMIN_PASS=""
 ```
 
 ### Nginx Configuration
@@ -94,6 +115,9 @@ JOB_EXPIRATION_HOURS=24
 - Caching for downloads
 - Security headers
 - Load balancing
+- Proxy cache zone defined and used for `/download/`
+- `stub_status` exposed at `/nginx_status` (restricted) for exporters
+- HSTS should be enabled only on HTTPS vhosts, not on plain HTTP
 
 ## 📈 Performance Expectations
 
@@ -161,8 +185,11 @@ redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
 # Check API health
 curl http://localhost:8080/health
 
-# View metrics
+# View JSON metrics (human)
 curl http://localhost:8080/metrics
+
+# View Prometheus metrics
+curl http://localhost:8080/metrics/prom
 
 # Check Redis
 redis-cli ping

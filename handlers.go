@@ -155,6 +155,7 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
         delete(jobStore.jobs, jobID)
         jobStore.Unlock()
         atomic.AddInt64(&queuedJobs, -1)
+        w.Header().Set("Retry-After", "1")
         http.Error(w, "Server busy, please try again later.", http.StatusServiceUnavailable)
     }
 }
