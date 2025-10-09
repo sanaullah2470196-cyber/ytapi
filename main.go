@@ -4,6 +4,7 @@ import (
     "fmt"
     "log"
     "net/http"
+    "os"
 
     "golang.org/x/time/rate"
 )
@@ -48,6 +49,7 @@ func main() {
     setupGracefulShutdown()
 
     fmt.Printf("🚀 High-Traffic Server running on http://localhost:8080 with %d workers\n", WorkerPoolSize)
+    fmt.Printf("🧰 WORKER_POOL_SIZE env=%q\n", os.Getenv("WORKER_POOL_SIZE"))
     fmt.Printf("📊 Rate Limit: %d req/s (burst: %d)\n", RequestsPerSecond, BurstSize)
     fmt.Printf("💾 Redis: %s\n", RedisAddr)
 
