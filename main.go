@@ -38,7 +38,7 @@ func main() {
     mux.HandleFunc("/health", handleHealth)
     mux.HandleFunc("/metrics", handleMetrics)
     mux.HandleFunc("/stats", handleStats)
-    mux.HandleFunc("/delete/", handleDelete)
+    mux.HandleFunc("/delete/", rateLimitMiddleware(apiKeyMiddleware(handleDelete)))
     mux.HandleFunc("/docs", handleDocs)
     mux.HandleFunc("/docs/frontend", handleDocsFrontend)
     mux.HandleFunc("/admin", basicAuthMiddleware(handleAdmin))

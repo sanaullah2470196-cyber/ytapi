@@ -32,7 +32,7 @@ This is a high-traffic optimized version of the YouTube to MP3 conversion API de
 
 ### Available Endpoints
 - `GET /health` - Server health status
-- `GET /metrics` - Prometheus metrics
+- `GET /metrics` - JSON metrics (for Prometheus, use exporter or update scrape)
 - `GET /stats` - Application statistics
 
 ### Key Metrics

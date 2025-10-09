@@ -10,7 +10,7 @@ import (
 )
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
     status := "healthy"
     // Consider both active and queued jobs as load indicator
     if atomic.LoadInt64(&activeJobs) >= int64(WorkerPoolSize) || atomic.LoadInt64(&queuedJobs) > int64(JobQueueCapacity/2) {
@@ -31,7 +31,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMetrics(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
     metrics := map[string]interface{}{
         "active_jobs":    atomic.LoadInt64(&activeJobs),
         "queued_jobs":    atomic.LoadInt64(&queuedJobs),
@@ -49,7 +49,7 @@ func handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleStats(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
     jobStore.RLock()
     totalJobs := len(jobStore.jobs)
     jobStore.RUnlock()
@@ -69,7 +69,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /delete/{job_id}
 func handleDelete(w http.ResponseWriter, r *http.Request) {
-    enableCORS(w)
+    enableCORS(w, r)
     if r.Method == http.MethodOptions {
         w.WriteHeader(http.StatusOK)
         return
