@@ -12,11 +12,11 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # YouTube to MP3 API
+  # YouTube to MP3 API (Prometheus exposition on /metrics/prom)
   - job_name: 'ytmp3-api'
     static_configs:
       - targets: ['api:8080']
-    metrics_path: '/metrics'
+    metrics_path: '/metrics/prom'
     scrape_interval: 5s
     scrape_timeout: 5s
 
@@ -25,7 +25,7 @@ scrape_configs:
     static_configs:
       - targets: ['redis:6379']
 
-  # Nginx
+  # Nginx stub_status (via /nginx_status)
   - job_name: 'nginx'
     static_configs:
       - targets: ['nginx:80']

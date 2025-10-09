@@ -37,6 +37,7 @@ func main() {
     mux.HandleFunc("/download/", rateLimitMiddleware(apiKeyMiddleware(handleDownload)))
     mux.HandleFunc("/health", handleHealth)
     mux.HandleFunc("/metrics", handleMetrics)
+    mux.HandleFunc("/metrics/prom", handlePromMetrics)
     mux.HandleFunc("/stats", handleStats)
     mux.HandleFunc("/delete/", rateLimitMiddleware(apiKeyMiddleware(handleDelete)))
     mux.HandleFunc("/docs", handleDocs)
