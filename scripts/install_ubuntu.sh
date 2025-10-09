@@ -158,6 +158,11 @@ echo "=== CORS (Cross-Origin Resource Sharing) ==="
 echo "Allowed origins: * or comma-separated list. If list, server echoes matching Origin only."
 ALLOWED_ORIGINS=$(read_with_default "Allowed origins for CORS (comma or *)" "*")
 
+# Logging
+echo
+echo "=== Logging ==="
+COLOR_LOGS=$(read_with_default "Enable color logs? (true/false)" "true")
+
 # Redis
 echo
 echo "=== Redis (Job storage and caching) ==="
@@ -316,6 +321,7 @@ YTDLP_TIMEOUT=${YTDLP_TIMEOUT}
 FFMPEG_MIN_TIMEOUT=${FFMPEG_MIN_TIMEOUT}
 FFMPEG_MAX_TIMEOUT=${FFMPEG_MAX_TIMEOUT}
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+COLOR_LOGS=${COLOR_LOGS}
 REQUIRE_API_KEY=${REQUIRE_API_KEY_ANS}
 API_KEYS=${API_KEYS}
 PER_IP_RPS=${PER_IP_RPS}
