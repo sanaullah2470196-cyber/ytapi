@@ -13,7 +13,6 @@ import (
     "github.com/google/uuid"
     "strings"
     "strconv"
-    "sync"
     "golang.org/x/time/rate"
 )
 
