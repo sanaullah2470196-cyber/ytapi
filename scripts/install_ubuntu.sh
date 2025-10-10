@@ -192,7 +192,7 @@ FAST_PATH_WAIT=$(prompt_duration "Fast-path wait (for quick jobs)" "8s")
 # External tool timeouts
 echo "yt-dlp and ffmpeg timeouts help long-video reliability."
 YTDLP_TIMEOUT=$(prompt_duration "yt-dlp metadata timeout" "120s")
-FFMPEG_MIN_TIMEOUT=$(prompt_duration "ffmpeg minimum timeout" "20m")
+FFMPEG_MIN_TIMEOUT=$(prompt_duration "ffmpeg minimum timeout" "30m")
 FFMPEG_MAX_TIMEOUT=$(prompt_duration "ffmpeg maximum timeout" "90m")
 
 # yt-dlp tuning
@@ -204,6 +204,18 @@ echo "Extractor args (single string), e.g.: youtube:player_client=ios"
 YTDLP_EXTRACTOR_ARGS=$(read_with_default "YTDLP extractor args" "")
 echo "Cookies (browser:chrome | path to cookies.txt | blank)"
 YTDLP_COOKIES=$(read_with_default "YTDLP cookies" "")
+
+# Download-then-convert strategy
+echo
+echo "=== Download-then-Convert Strategy ==="
+echo "Always download audio first? If false, only long videos download first."
+ALWAYS_DOWNLOAD=$(read_with_default "Always download before convert? (true/false)" "true")
+echo "If duration >= threshold, download first (e.g., 10m; 0s to disable threshold)."
+DOWNLOAD_THRESHOLD=$(prompt_duration "Download threshold" "10m")
+YTDLP_DOWNLOAD_CONCURRENCY=$(prompt_int "yt-dlp download concurrency (-N)" "8")
+FFMPEG_MODE=$(read_with_default "FFmpeg mode (CBR/VBR)" "VBR")
+FFMPEG_VBR_Q=$(prompt_int "FFmpeg VBR quality (0..9, lower=better)" "5")
+FFMPEG_THREADS=$(prompt_int "FFmpeg threads (0=auto)" "2")
 
 # Retry backoff
 echo
@@ -337,6 +349,12 @@ FFMPEG_MAX_TIMEOUT=${FFMPEG_MAX_TIMEOUT}
 YTDLP_EXTRA_ARGS=${YTDLP_EXTRA_ARGS}
 YTDLP_EXTRACTOR_ARGS=${YTDLP_EXTRACTOR_ARGS}
 YTDLP_COOKIES=${YTDLP_COOKIES}
+ALWAYS_DOWNLOAD=${ALWAYS_DOWNLOAD}
+DOWNLOAD_THRESHOLD=${DOWNLOAD_THRESHOLD}
+YTDLP_DOWNLOAD_CONCURRENCY=${YTDLP_DOWNLOAD_CONCURRENCY}
+FFMPEG_MODE=${FFMPEG_MODE}
+FFMPEG_VBR_Q=${FFMPEG_VBR_Q}
+FFMPEG_THREADS=${FFMPEG_THREADS}
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 COLOR_LOGS=${COLOR_LOGS}
 REQUIRE_API_KEY=${REQUIRE_API_KEY_ANS}
