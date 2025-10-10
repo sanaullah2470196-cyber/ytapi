@@ -49,6 +49,11 @@ func main() {
     mux.HandleFunc("/admin/jobs", basicAuthMiddleware(handleAdminJobsPage))
     mux.HandleFunc("/admin/api/jobs", basicAuthMiddleware(handleAdminAPIJobsList))
     mux.HandleFunc("/admin/api/retry/", basicAuthMiddleware(handleAdminAPIRetry))
+    mux.HandleFunc("/admin/api/cancel/", basicAuthMiddleware(handleAdminAPICancel))
+    mux.HandleFunc("/admin/api/state", basicAuthMiddleware(handleAdminAPIState))
+    mux.HandleFunc("/admin/api/pause", basicAuthMiddleware(handleAdminAPIPause))
+    mux.HandleFunc("/admin/api/resume", basicAuthMiddleware(handleAdminAPIResume))
+    mux.HandleFunc("/admin/api/queue/clear", basicAuthMiddleware(handleAdminAPIClearQueue))
 
     // Graceful shutdown setup
     setupGracefulShutdown()

@@ -51,6 +51,13 @@ var (
 
     // Context for graceful shutdown
     ctx, cancel = context.WithCancel(context.Background())
+
+    // Intake pause flag and canceled job set
+    intakePaused int32 // 0=false, 1=true (use atomic)
+    canceledJobs = struct{
+        sync.Mutex
+        m map[string]struct{}
+    }{m: make(map[string]struct{})}
 )
 
 // Waiters notified when a job reaches a terminal state (completed or failed).

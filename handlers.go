@@ -13,6 +13,7 @@ import (
     "github.com/google/uuid"
     "strings"
     "strconv"
+    "sync"
 )
 
 func handleExtract(w http.ResponseWriter, r *http.Request) {
@@ -20,6 +21,11 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
 
     if r.Method == http.MethodOptions {
         w.WriteHeader(http.StatusOK)
+        return
+    }
+    if atomic.LoadInt32(&intakePaused) == 1 {
+        w.Header().Set("Retry-After", "5")
+        http.Error(w, "Intake paused by admin", http.StatusServiceUnavailable)
         return
     }
     if r.Method != http.MethodPost {
@@ -450,8 +456,11 @@ func handleAdminLiveOps(w http.ResponseWriter, r *http.Request) {
     io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>Live Ops</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-    async function pauseIntake(){ await fetch('/admin/api/pause', {method:'POST'}).catch(()=>{}); }
-    async function resumeIntake(){ await fetch('/admin/api/resume', {method:'POST'}).catch(()=>{}); }
+    async function pauseIntake(){ await fetch('/admin/api/pause', {method:'POST'}).then(()=>loadState()).catch(()=>{}); }
+    async function resumeIntake(){ await fetch('/admin/api/resume', {method:'POST'}).then(()=>loadState()).catch(()=>{}); }
+    async function clearQueue(){ await fetch('/admin/api/queue/clear',{method:'POST'}).then(()=>loadState()); }
+    async function loadState(){ const s = await fetch('/admin/api/state').then(r=>r.json()).catch(()=>({})); document.getElementById('state').textContent=JSON.stringify(s,null,2); }
+    window.onload = loadState;
     </script></head>
     <body class="bg-gray-50">
     <div class="max-w-5xl mx-auto p-6">
@@ -469,7 +478,10 @@ func handleAdminLiveOps(w http.ResponseWriter, r *http.Request) {
         <div class="flex gap-3">
           <button onclick="pauseIntake()" class="px-3 py-2 bg-yellow-500 text-white rounded">Pause Intake</button>
           <button onclick="resumeIntake()" class="px-3 py-2 bg-green-600 text-white rounded">Resume Intake</button>
+          <button onclick="clearQueue()" class="px-3 py-2 bg-red-600 text-white rounded">Clear Queue</button>
         </div>
+        <h3 class="font-medium mt-4">State</h3>
+        <pre id="state" class="text-sm bg-gray-100 p-3 rounded">{}</pre>
       </div>
     </div>
     </body></html>`)
@@ -487,11 +499,12 @@ func handleAdminJobsPage(w http.ResponseWriter, r *http.Request) {
       const tbody = document.getElementById('jobs'); tbody.innerHTML='';
       list.forEach(j=>{
         const tr=document.createElement('tr');
-        tr.innerHTML = `<td class='p-2 border'>${j.id}</td><td class='p-2 border'>${j.status}</td><td class='p-2 border'>${j.url||''}</td><td class='p-2 border'>${j.error||''}</td><td class='p-2 border'><button class='px-2 py-1 bg-blue-600 text-white rounded' onclick=retryJob('${j.id}')>Retry</button> <button class='px-2 py-1 bg-red-600 text-white rounded' onclick=deleteJob('${j.id}')>Delete</button></td>`;
+        tr.innerHTML = `<td class='p-2 border'>${j.id}</td><td class='p-2 border'>${j.status}</td><td class='p-2 border'>${j.url||''}</td><td class='p-2 border'>${j.error||''}</td><td class='p-2 border'><button class='px-2 py-1 bg-blue-600 text-white rounded' onclick=retryJob('${j.id}')>Retry</button> <button class='px-2 py-1 bg-orange-600 text-white rounded' onclick=cancelJob('${j.id}')>Cancel</button> <button class='px-2 py-1 bg-red-600 text-white rounded' onclick=deleteJob('${j.id}')>Delete</button></td>`;
         tbody.appendChild(tr);
       });
     }
     async function retryJob(id){ await fetch('/admin/api/retry/'+id,{method:'POST'}).then(()=>loadJobs()); }
+    async function cancelJob(id){ await fetch('/admin/api/cancel/'+id,{method:'POST'}).then(()=>loadJobs()); }
     async function deleteJob(id){ await fetch('/delete/'+id,{method:'DELETE'}).then(()=>loadJobs()); }
     window.onload=loadJobs;
     </script></head>
@@ -524,6 +537,8 @@ func handleAdminAPIJobsList(w http.ResponseWriter, r *http.Request) {
         out = append(out, map[string]interface{}{"id": j.ID, "status": j.Status, "url": j.URL, "error": j.Error})
     }
     jobStore.RUnlock()
+    // Augment with Redis jobs if not in memory (best-effort)
+    // Skipped for brevity to avoid large scans in production
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(out)
 }
@@ -540,4 +555,73 @@ func handleAdminAPIRetry(w http.ResponseWriter, r *http.Request) {
     select { case jobQueue <- j: default: }
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]string{"enqueued": id})
+}
+
+// Admin API: cancel job (best effort)
+func handleAdminAPICancel(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    id := filepath.Base(r.URL.Path)
+    canceledJobs.Lock(); canceledJobs.m[id] = struct{}{}; canceledJobs.Unlock()
+    // If job exists and is pending, mark as canceled immediately
+    jobStore.Lock()
+    if j, ok := jobStore.jobs[id]; ok {
+        if j.Status == StatusPending {
+            j.Status = StatusCanceled
+            j.Error = "canceled by admin"
+            saveJobToRedis(j)
+        }
+    }
+    jobStore.Unlock()
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"canceled": id})
+}
+
+// Admin API: get state
+func handleAdminAPIState(w http.ResponseWriter, r *http.Request) {
+    state := map[string]interface{}{
+        "intake_paused": atomic.LoadInt32(&intakePaused) == 1,
+        "active_jobs": atomic.LoadInt64(&activeJobs),
+        "queued_jobs": atomic.LoadInt64(&queuedJobs),
+        "workers": WorkerPoolSize,
+    }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(state)
+}
+
+// Admin API: pause/resume intake
+func handleAdminAPIPause(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    atomic.StoreInt32(&intakePaused, 1)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]bool{"intake_paused": true})
+}
+
+func handleAdminAPIResume(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    atomic.StoreInt32(&intakePaused, 0)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]bool{"intake_paused": false})
+}
+
+// Admin API: clear queue (best effort: drain pending jobs from channel and mark canceled)
+func handleAdminAPIClearQueue(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    drained := 0
+    for {
+        select {
+        case j := <-jobQueue:
+            if j != nil {
+                j.Status = StatusCanceled
+                j.Error = "cleared by admin"
+                saveJobToRedis(j)
+                drained++
+            }
+        default:
+            goto DONE
+        }
+    }
+DONE:
+    atomic.StoreInt64(&queuedJobs, 0)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]int{"cleared": drained})
 }

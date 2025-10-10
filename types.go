@@ -25,6 +25,7 @@ const (
     StatusProcessing JobStatus = "processing"
     StatusCompleted  JobStatus = "completed"
     StatusFailed     JobStatus = "failed"
+    StatusCanceled   JobStatus = "canceled"
 )
 
 type ConversionJob struct {

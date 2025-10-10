@@ -11,6 +11,17 @@ import (
 func startWorker(workerID int) {
     logInfof("worker_startup worker_id=%d", workerID)
     for job := range jobQueue {
+        // Skip canceled jobs before starting
+        canceledJobs.Lock()
+        _, isCanceled := canceledJobs.m[job.ID]
+        canceledJobs.Unlock()
+        if isCanceled || job.Status == StatusCanceled {
+            logWarnf("worker_skip_canceled job_id=%s worker_id=%d", job.ID, workerID)
+            atomic.AddInt64(&queuedJobs, -1)
+            updateJobStatus(job, StatusCanceled, "canceled by admin")
+            notifyJobCompletion(job)
+            continue
+        }
         processJob(job, workerID)
     }
 }
@@ -34,6 +45,9 @@ func processJob(job *ConversionJob, workerID int) {
     }
     outputPath := filepath.Join(outputDir, job.ID+".mp3")
 
+    // Check cancel signal before heavy steps
+    canceledJobs.Lock(); _, isCanceled := canceledJobs.m[job.ID]; canceledJobs.Unlock()
+    if isCanceled { finalizeCanceled(job); return }
     logInfof("ytdlp_fetch_start job_id=%s", job.ID)
     t0 := time.Now()
     audioURL, meta, err := getAudioStreamFromYTDLP(job.URL)
@@ -68,9 +82,11 @@ func processJob(job *ConversionJob, workerID int) {
     if useDownload {
         tmpNoExt := filepath.Join(outputDir, job.ID+"_src")
         logInfof("ytdlp_download_start job_id=%s concurrency=%d", job.ID, YTDLPDownloadConcurrency)
+        canceledJobs.Lock(); _, isCanceled := canceledJobs.m[job.ID]; canceledJobs.Unlock(); if isCanceled { finalizeCanceled(job); return }
         if err := downloadAudioWithYTDLP(job.URL, tmpNoExt, meta.Ext); err != nil {
             // Fallback to streaming encode if download fails
             logWarnf("ytdlp_download_failed_fallback_to_stream job_id=%s err=%v", job.ID, err)
+            canceledJobs.Lock(); _, isCanceled := canceledJobs.m[job.ID]; canceledJobs.Unlock(); if isCanceled { finalizeCanceled(job); return }
             logInfof("ffmpeg_start job_id=%s mode=%s timeout=%s", job.ID, FFmpegMode, ffTimeout)
             if err2 := convertStreamToMP3(audioURL, outputPath, ffTimeout); err2 != nil {
                 logErrorf("ffmpeg_error job_id=%s err=%v", job.ID, err2)
@@ -89,6 +105,7 @@ func processJob(job *ConversionJob, workerID int) {
             if srcPath == "" { srcPath = tmpNoExt + ".m4a" }
             logInfof("ytdlp_download_done job_id=%s duration_ms=%d src=%s", job.ID, time.Since(t1).Milliseconds(), srcPath)
             // Convert from local file
+            canceledJobs.Lock(); _, isCanceled := canceledJobs.m[job.ID]; canceledJobs.Unlock(); if isCanceled { finalizeCanceled(job); return }
             logInfof("ffmpeg_start job_id=%s mode=%s timeout=%s", job.ID, FFmpegMode, ffTimeout)
             t1 = time.Now()
             if err := convertStreamToMP3(srcPath, outputPath, ffTimeout); err != nil {
@@ -101,6 +118,7 @@ func processJob(job *ConversionJob, workerID int) {
             _ = os.Remove(srcPath)
         }
     } else {
+        canceledJobs.Lock(); _, isCanceled := canceledJobs.m[job.ID]; canceledJobs.Unlock(); if isCanceled { finalizeCanceled(job); return }
         logInfof("ffmpeg_start job_id=%s mode=%s timeout=%s", job.ID, FFmpegMode, ffTimeout)
         if err := convertStreamToMP3(audioURL, outputPath, ffTimeout); err != nil {
             logErrorf("ffmpeg_error job_id=%s err=%v", job.ID, err)
@@ -127,4 +145,10 @@ func processJob(job *ConversionJob, workerID int) {
 
     notifyJobCompletion(job)
     logInfof("job_completed job_id=%s total_ms=%d download_url=%s", job.ID, job.CompletedAt.Sub(job.CreatedAt).Milliseconds(), job.DownloadURL)
+}
+
+func finalizeCanceled(job *ConversionJob) {
+    updateJobStatus(job, StatusCanceled, "canceled by admin")
+    atomic.AddInt64(&activeJobs, -1)
+    notifyJobCompletion(job)
 }

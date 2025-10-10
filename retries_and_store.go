@@ -21,6 +21,13 @@ func updateJobStatus(job *ConversionJob, status JobStatus, errMsg string) {
 }
 
 func handleJobFailure(job *ConversionJob, err error, stage string) {
+    // Do not retry if job has been canceled
+    canceledJobs.Lock(); _, isCanceled := canceledJobs.m[job.ID]; canceledJobs.Unlock()
+    if isCanceled || job.Status == StatusCanceled {
+        updateJobStatus(job, StatusCanceled, "canceled by admin")
+        notifyJobCompletion(job)
+        return
+    }
     job.Retries++
     if job.Retries <= job.MaxRetries {
         log.Printf("Job %s (%s): %s. Retrying (%d/%d)...\n", job.ID, job.URL, err.Error(), job.Retries, job.MaxRetries)
