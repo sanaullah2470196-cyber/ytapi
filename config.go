@@ -56,6 +56,11 @@ var (
 
     // Logging
     ColorLogs = true
+
+    // yt-dlp tuning
+    YTDLPExtraArgs      = ""
+    YTDLPExtractorArgs  = ""
+    YTDLPCookies        = "" // "browser:chrome" or "/path/cookies.txt"
 )
 
 func envInt(key string, def int) int {
@@ -131,4 +136,9 @@ func InitConfigFromEnv() {
 
     // Logging
     ColorLogs = envString("COLOR_LOGS", "true") == "true"
+
+    // yt-dlp tuning
+    YTDLPExtraArgs = envString("YTDLP_EXTRA_ARGS", YTDLPExtraArgs)
+    YTDLPExtractorArgs = envString("YTDLP_EXTRACTOR_ARGS", YTDLPExtractorArgs)
+    YTDLPCookies = envString("YTDLP_COOKIES", YTDLPCookies)
 }

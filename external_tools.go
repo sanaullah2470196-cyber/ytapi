@@ -35,7 +35,25 @@ func getAudioStreamFromYTDLP(videoURL string) (string, *Metadata, error) {
     ctxTimeout, cancel := context.WithTimeout(ctx, YTDLPTimeout)
     defer cancel()
 
-    cmd := exec.CommandContext(ctxTimeout, "yt-dlp", "-J", "--no-warnings", "--skip-download", videoURL)
+    args := []string{"-J", "--no-warnings", "--skip-download"}
+    if YTDLPCookies != "" {
+        if strings.HasPrefix(YTDLPCookies, "browser:") {
+            // e.g., browser:chrome
+            args = append(args, "--cookies-from-browser", strings.TrimPrefix(YTDLPCookies, "browser:"))
+        } else {
+            args = append(args, "--cookies", YTDLPCookies)
+        }
+    }
+    if YTDLPExtractorArgs != "" {
+        args = append(args, "--extractor-args", YTDLPExtractorArgs)
+    }
+    if YTDLPExtraArgs != "" {
+        // split on spaces; simple parser
+        parts := strings.Fields(YTDLPExtraArgs)
+        args = append(args, parts...)
+    }
+    args = append(args, videoURL)
+    cmd := exec.CommandContext(ctxTimeout, "yt-dlp", args...)
     var stdout, stderr bytes.Buffer
     cmd.Stdout = &stdout
     cmd.Stderr = &stderr

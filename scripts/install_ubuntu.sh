@@ -176,6 +176,8 @@ else
     echo "Format must be host:port"
   done
 fi
+REDIS_PASSWORD=$(read_with_default "Redis password (blank = none)" "")
+REDIS_DB=$(prompt_int "Redis DB index" "0")
 
 # Durations (use Go duration format: 24h, 30s, etc.)
 echo
@@ -192,6 +194,16 @@ echo "yt-dlp and ffmpeg timeouts help long-video reliability."
 YTDLP_TIMEOUT=$(prompt_duration "yt-dlp metadata timeout" "120s")
 FFMPEG_MIN_TIMEOUT=$(prompt_duration "ffmpeg minimum timeout" "20m")
 FFMPEG_MAX_TIMEOUT=$(prompt_duration "ffmpeg maximum timeout" "90m")
+
+# yt-dlp tuning
+echo
+echo "=== yt-dlp Tuning (optional) ==="
+echo "Extra yt-dlp args (space separated), e.g.: --ignore-config --force-ipv4 --socket-timeout 5 --retries 1"
+YTDLP_EXTRA_ARGS=$(read_with_default "YTDLP extra args" "--ignore-config --force-ipv4 --socket-timeout 5 --retries 1 --extractor-args youtube:player_client=ios")
+echo "Extractor args (single string), e.g.: youtube:player_client=ios"
+YTDLP_EXTRACTOR_ARGS=$(read_with_default "YTDLP extractor args" "")
+echo "Cookies (browser:chrome | path to cookies.txt | blank)"
+YTDLP_COOKIES=$(read_with_default "YTDLP cookies" "")
 
 # Retry backoff
 echo
@@ -309,6 +321,8 @@ else
 fi
 cat >"${ENV_FILE}" <<EOF
 REDIS_ADDR=${REDIS_ADDR}
+REDIS_PASSWORD=${REDIS_PASSWORD}
+REDIS_DB=${REDIS_DB}
 REQUESTS_PER_SECOND=${REQUESTS_PER_SECOND}
 BURST_SIZE=${BURST_SIZE}
 WORKER_POOL_SIZE=${WORKER_POOL_SIZE}
@@ -320,6 +334,9 @@ FAST_PATH_WAIT=${FAST_PATH_WAIT}
 YTDLP_TIMEOUT=${YTDLP_TIMEOUT}
 FFMPEG_MIN_TIMEOUT=${FFMPEG_MIN_TIMEOUT}
 FFMPEG_MAX_TIMEOUT=${FFMPEG_MAX_TIMEOUT}
+YTDLP_EXTRA_ARGS=${YTDLP_EXTRA_ARGS}
+YTDLP_EXTRACTOR_ARGS=${YTDLP_EXTRACTOR_ARGS}
+YTDLP_COOKIES=${YTDLP_COOKIES}
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 COLOR_LOGS=${COLOR_LOGS}
 REQUIRE_API_KEY=${REQUIRE_API_KEY_ANS}
