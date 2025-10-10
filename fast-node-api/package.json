@@ -1,0 +1,14 @@
+{
+  "name": "fast-node-api",
+  "version": "1.0.0",
+  "description": "Super fast YouTube to MP3 streaming API (download-then-convert or stream-transcode)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0"
+  }
+}
