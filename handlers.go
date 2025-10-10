@@ -357,7 +357,8 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
     w.Header().Set("Content-Type", "text/html; charset=utf-8")
     io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>Admin</title>
-    <style>body{font-family:sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:6px}</style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>table{border-collapse:collapse}td,th{border:1px solid #e5e7eb;padding:6px}</style>
     <script>
     async function refresh(){
       const h = await fetch('/health',{headers:{'Authorization':localStorage.auth||''}}).then(r=>r.json()).catch(()=>({}));
@@ -367,10 +368,176 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
     }
     setInterval(refresh, 3000);
     window.onload=refresh;
-    </script></head><body>
-    <h1>Admin Dashboard</h1>
-    <p>Live server state, health, and metrics.</p>
-    <h2>Health</h2><pre id="health">loading...</pre>
-    <h2>Metrics</h2><pre id="metrics">loading...</pre>
+    </script></head><body class="bg-gray-50">
+    <div class="max-w-6xl mx-auto p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold">Admin Dashboard</h1>
+        <nav class="space-x-4 text-blue-600">
+          <a class="hover:underline" href="/admin">Home</a>
+          <a class="hover:underline" href="/admin/playground">API Playground</a>
+          <a class="hover:underline" href="/admin/liveops">Live Ops</a>
+          <a class="hover:underline" href="/admin/jobs">Jobs</a>
+        </nav>
+      </div>
+      <p class="mb-4 text-gray-600">Live server state, health, and metrics.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded shadow p-4">
+          <h2 class="font-medium mb-2">Health</h2>
+          <pre id="health" class="text-sm bg-gray-100 p-3 rounded">loading...</pre>
+        </div>
+        <div class="bg-white rounded shadow p-4">
+          <h2 class="font-medium mb-2">Metrics</h2>
+          <pre id="metrics" class="text-sm bg-gray-100 p-3 rounded">loading...</pre>
+        </div>
+      </div>
+    </div>
     </body></html>`)
+}
+
+// API Playground page
+func handleAdminPlayground(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>API Playground</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    async function postExtract(){
+      const url = document.getElementById('url').value.trim();
+      if(!url) return;
+      const resp = await fetch('/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})}).then(r=>r.json());
+      document.getElementById('extractResp').textContent = JSON.stringify(resp,null,2);
+    }
+    async function pollStatus(){
+      const id = document.getElementById('jobid').value.trim();
+      if(!id) return;
+      const resp = await fetch('/status/'+id).then(r=>r.json());
+      document.getElementById('statusResp').textContent = JSON.stringify(resp,null,2);
+    }
+    async function triggerDownload(){
+      const id = document.getElementById('jobid').value.trim();
+      if(!id) return; window.location='/download/'+id+'.mp3';
+    }
+    </script></head>
+    <body class="bg-gray-50">
+    <div class="max-w-5xl mx-auto p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold">API Playground</h1>
+        <nav class="space-x-4 text-blue-600">
+          <a class="hover:underline" href="/admin">Home</a>
+          <a class="hover:underline" href="/admin/playground">API Playground</a>
+          <a class="hover:underline" href="/admin/liveops">Live Ops</a>
+          <a class="hover:underline" href="/admin/jobs">Jobs</a>
+        </nav>
+      </div>
+      <div class="bg-white rounded shadow p-4 mb-6">
+        <h2 class="font-medium mb-2">Extract</h2>
+        <div class="flex gap-2 mb-3"><input id="url" class="flex-1 border p-2 rounded" placeholder="YouTube URL"><button onclick="postExtract()" class="px-3 py-2 bg-blue-600 text-white rounded">POST /extract</button></div>
+        <pre id="extractResp" class="text-sm bg-gray-100 p-3 rounded">{}</pre>
+      </div>
+      <div class="bg-white rounded shadow p-4">
+        <h2 class="font-medium mb-2">Status & Download</h2>
+        <div class="flex gap-2 mb-3"><input id="jobid" class="flex-1 border p-2 rounded" placeholder="job_id"><button onclick="pollStatus()" class="px-3 py-2 bg-blue-600 text-white rounded">GET /status/{job_id}</button><button onclick="triggerDownload()" class="px-3 py-2 bg-green-600 text-white rounded">GET /download/{job_id}.mp3</button></div>
+        <pre id="statusResp" class="text-sm bg-gray-100 p-3 rounded">{}</pre>
+      </div>
+    </div>
+    </body></html>`)
+}
+
+// Live Ops page
+func handleAdminLiveOps(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>Live Ops</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    async function pauseIntake(){ await fetch('/admin/api/pause', {method:'POST'}).catch(()=>{}); }
+    async function resumeIntake(){ await fetch('/admin/api/resume', {method:'POST'}).catch(()=>{}); }
+    </script></head>
+    <body class="bg-gray-50">
+    <div class="max-w-5xl mx-auto p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold">Live Ops</h1>
+        <nav class="space-x-4 text-blue-600">
+          <a class="hover:underline" href="/admin">Home</a>
+          <a class="hover:underline" href="/admin/playground">API Playground</a>
+          <a class="hover:underline" href="/admin/liveops">Live Ops</a>
+          <a class="hover:underline" href="/admin/jobs">Jobs</a>
+        </nav>
+      </div>
+      <div class="bg-white rounded shadow p-4">
+        <h2 class="font-medium mb-2">Controls</h2>
+        <div class="flex gap-3">
+          <button onclick="pauseIntake()" class="px-3 py-2 bg-yellow-500 text-white rounded">Pause Intake</button>
+          <button onclick="resumeIntake()" class="px-3 py-2 bg-green-600 text-white rounded">Resume Intake</button>
+        </div>
+      </div>
+    </div>
+    </body></html>`)
+}
+
+// Jobs page
+func handleAdminJobsPage(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>Jobs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    async function loadJobs(){
+      const list = await fetch('/admin/api/jobs').then(r=>r.json()).catch(()=>[]);
+      const tbody = document.getElementById('jobs'); tbody.innerHTML='';
+      list.forEach(j=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td class='p-2 border'>${j.id}</td><td class='p-2 border'>${j.status}</td><td class='p-2 border'>${j.url||''}</td><td class='p-2 border'>${j.error||''}</td><td class='p-2 border'><button class='px-2 py-1 bg-blue-600 text-white rounded' onclick=retryJob('${j.id}')>Retry</button> <button class='px-2 py-1 bg-red-600 text-white rounded' onclick=deleteJob('${j.id}')>Delete</button></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    async function retryJob(id){ await fetch('/admin/api/retry/'+id,{method:'POST'}).then(()=>loadJobs()); }
+    async function deleteJob(id){ await fetch('/delete/'+id,{method:'DELETE'}).then(()=>loadJobs()); }
+    window.onload=loadJobs;
+    </script></head>
+    <body class="bg-gray-50">
+    <div class="max-w-6xl mx-auto p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold">Jobs</h1>
+        <nav class="space-x-4 text-blue-600">
+          <a class="hover:underline" href="/admin">Home</a>
+          <a class="hover:underline" href="/admin/playground">API Playground</a>
+          <a class="hover:underline" href="/admin/liveops">Live Ops</a>
+          <a class="hover:underline" href="/admin/jobs">Jobs</a>
+        </nav>
+      </div>
+      <div class="bg-white rounded shadow p-4">
+        <table class="w-full text-sm">
+          <thead><tr class="bg-gray-100"><th class="p-2 border">Job ID</th><th class="p-2 border">Status</th><th class="p-2 border">URL</th><th class="p-2 border">Error</th><th class="p-2 border">Actions</th></tr></thead>
+          <tbody id="jobs"></tbody>
+        </table>
+      </div>
+    </div>
+    </body></html>`)
+}
+
+// Admin API: list jobs (basic)
+func handleAdminAPIJobsList(w http.ResponseWriter, r *http.Request) {
+    jobStore.RLock()
+    out := make([]map[string]interface{}, 0, len(jobStore.jobs))
+    for _, j := range jobStore.jobs {
+        out = append(out, map[string]interface{}{"id": j.ID, "status": j.Status, "url": j.URL, "error": j.Error})
+    }
+    jobStore.RUnlock()
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(out)
+}
+
+// Admin API: retry job
+func handleAdminAPIRetry(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    id := filepath.Base(r.URL.Path)
+    jobStore.RLock()
+    j, ok := jobStore.jobs[id]
+    jobStore.RUnlock()
+    if !ok { http.Error(w, "Job not found", http.StatusNotFound); return }
+    j.Status = StatusPending; j.Error = ""; j.Retries = 0
+    select { case jobQueue <- j: default: }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"enqueued": id})
 }
