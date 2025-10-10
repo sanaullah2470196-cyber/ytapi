@@ -61,6 +61,18 @@ var (
     YTDLPExtraArgs      = ""
     YTDLPExtractorArgs  = ""
     YTDLPCookies        = "" // "browser:chrome" or "/path/cookies.txt"
+
+    // Download-then-convert strategy
+    AlwaysDownload      = false
+    DownloadThreshold   = 10 * time.Minute // if duration >= threshold, download first
+    YTDLPDownloadConcurrency = 8
+    YTDLPDownloadTimeout     = 30 * time.Minute
+
+    // ffmpeg audio settings
+    FFmpegMode       = "CBR"   // CBR or VBR
+    FFmpegCBRBitrate = "192k"  // used when CBR
+    FFmpegVBRQ       = 5        // used when VBR (0..9, lower=better)
+    FFmpegThreads    = 0        // 0 = auto
 )
 
 func envInt(key string, def int) int {
@@ -141,4 +153,16 @@ func InitConfigFromEnv() {
     YTDLPExtraArgs = envString("YTDLP_EXTRA_ARGS", YTDLPExtraArgs)
     YTDLPExtractorArgs = envString("YTDLP_EXTRACTOR_ARGS", YTDLPExtractorArgs)
     YTDLPCookies = envString("YTDLP_COOKIES", YTDLPCookies)
+
+    // Download-then-convert strategy
+    AlwaysDownload = envString("ALWAYS_DOWNLOAD", "false") == "true"
+    DownloadThreshold = envDuration("DOWNLOAD_THRESHOLD", DownloadThreshold)
+    YTDLPDownloadConcurrency = envInt("YTDLP_DOWNLOAD_CONCURRENCY", YTDLPDownloadConcurrency)
+    YTDLPDownloadTimeout = envDuration("YTDLP_DOWNLOAD_TIMEOUT", YTDLPDownloadTimeout)
+
+    // ffmpeg audio settings
+    FFmpegMode = envString("FFMPEG_MODE", FFmpegMode)
+    FFmpegCBRBitrate = envString("FFMPEG_CBR_BITRATE", FFmpegCBRBitrate)
+    FFmpegVBRQ = envInt("FFMPEG_VBR_Q", FFmpegVBRQ)
+    FFmpegThreads = envInt("FFMPEG_THREADS", FFmpegThreads)
 }

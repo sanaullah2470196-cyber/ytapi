@@ -124,6 +124,35 @@ func getAudioStreamFromYTDLP(videoURL string) (string, *Metadata, error) {
     return best.URL, meta, nil
 }
 
+func downloadAudioWithYTDLP(videoURL, outputPath string, expectedExt string) error {
+    // Build output template to desired path
+    // yt-dlp will add extension automatically; we write to a temp and rename
+    ctxTimeout, cancel := context.WithTimeout(ctx, YTDLPDownloadTimeout)
+    defer cancel()
+    // Prefer bestaudio; parallel fragment downloads
+    args := []string{"-f", "bestaudio[acodec!=none]/bestaudio", "-N", fmt.Sprintf("%d", YTDLPDownloadConcurrency),
+        "-o", outputPath + ".%(ext)s", "--no-playlist", "--no-warnings"}
+    if YTDLPCookies != "" {
+        if strings.HasPrefix(YTDLPCookies, "browser:") {
+            args = append(args, "--cookies-from-browser", strings.TrimPrefix(YTDLPCookies, "browser:"))
+        } else { args = append(args, "--cookies", YTDLPCookies) }
+    }
+    if YTDLPExtraArgs != "" { args = append(args, strings.Fields(YTDLPExtraArgs)...)}
+    args = append(args, videoURL)
+    cmd := exec.CommandContext(ctxTimeout, "yt-dlp", args...)
+    var stderr bytes.Buffer
+    cmd.Stderr = &stderr
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("yt-dlp download error: %v | %s", err, strings.TrimSpace(stderr.String()))
+    }
+    // Try to find produced file with known extensions
+    for _, ext := range []string{"m4a", "webm", "mp4", expectedExt} {
+        p := outputPath + "." + ext
+        if _, err := os.Stat(p); err == nil { return nil }
+    }
+    return fmt.Errorf("yt-dlp download succeeded but file not found")
+}
+
 func convertStreamToMP3(audioURL, outputPath string, timeout time.Duration) error {
     if timeout <= 0 {
         timeout = FFmpegMinTimeout
@@ -134,24 +163,25 @@ func convertStreamToMP3(audioURL, outputPath string, timeout time.Duration) erro
     ctxTimeout, cancel := context.WithTimeout(ctx, timeout)
     defer cancel()
 
-    args := []string{
-        "-y",
-        "-loglevel", "error",
-        "-nostdin",
-        // Network resilience for long streams
-        "-reconnect", "1",
-        "-reconnect_streamed", "1",
-        "-reconnect_on_network_error", "1",
-        "-reconnect_delay_max", "10",
-        // Read/write timeout in microseconds (e.g., 60s)
-        "-rw_timeout", "60000000",
-        "-i", audioURL,
-        "-vn",
-        "-acodec", "libmp3lame",
-        "-ar", "44100",
-        "-b:a", "192k",
-        outputPath,
+    args := []string{"-y", "-loglevel", "error", "-nostdin"}
+    if strings.HasPrefix(audioURL, "http") {
+        // Network resilience only for URLs
+        args = append(args,
+            "-reconnect", "1",
+            "-reconnect_streamed", "1",
+            "-reconnect_on_network_error", "1",
+            "-reconnect_delay_max", "10",
+            "-rw_timeout", "60000000",
+        )
     }
+    args = append(args, "-i", audioURL, "-vn", "-acodec", "libmp3lame", "-ar", "44100")
+    if strings.EqualFold(FFmpegMode, "VBR") {
+        args = append(args, "-q:a", fmt.Sprintf("%d", FFmpegVBRQ))
+    } else {
+        args = append(args, "-b:a", FFmpegCBRBitrate)
+    }
+    if FFmpegThreads > 0 { args = append(args, "-threads", fmt.Sprintf("%d", FFmpegThreads)) }
+    args = append(args, outputPath)
     cmd := exec.CommandContext(ctxTimeout, "ffmpeg", args...)
     var stderr bytes.Buffer
     cmd.Stderr = &stderr

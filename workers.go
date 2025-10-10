@@ -53,14 +53,51 @@ func processJob(job *ConversionJob, workerID int) {
         calc := time.Duration(meta.Duration*2)*time.Second + 3*time.Minute
         if calc > ffTimeout { ffTimeout = calc }
     }
-    logInfof("ffmpeg_start job_id=%s codec=libmp3lame ar=44100 bitrate=192k timeout=%s", job.ID, ffTimeout)
+    // Decide download-then-convert for long videos
+    useDownload := AlwaysDownload
+    if meta != nil && meta.Duration > 0 && time.Duration(meta.Duration)*time.Second >= DownloadThreshold {
+        useDownload = true
+    }
+
     t1 := time.Now()
-    if err := convertStreamToMP3(audioURL, outputPath, ffTimeout); err != nil {
-        logErrorf("ffmpeg_error job_id=%s err=%v", job.ID, err)
-        handleJobFailure(job, err, "ffmpeg conversion failed")
-        atomic.AddInt64(&activeJobs, -1)
-        atomic.AddInt64(&failedJobs, 1)
-        return
+    if useDownload {
+        tmpNoExt := filepath.Join(outputDir, job.ID+"_src")
+        logInfof("ytdlp_download_start job_id=%s concurrency=%d", job.ID, YTDLPDownloadConcurrency)
+        if err := downloadAudioWithYTDLP(job.URL, tmpNoExt, meta.Ext); err != nil {
+            logErrorf("ytdlp_download_error job_id=%s err=%v", job.ID, err)
+            handleJobFailure(job, err, "yt-dlp audio download failed")
+            atomic.AddInt64(&activeJobs, -1)
+            atomic.AddInt64(&failedJobs, 1)
+            return
+        }
+        // find downloaded file
+        var srcPath string
+        for _, ext := range []string{"m4a", "webm", "mp4", meta.Ext} {
+            p := tmpNoExt + "." + ext
+            if _, err := os.Stat(p); err == nil { srcPath = p; break }
+        }
+        if srcPath == "" { srcPath = tmpNoExt + ".m4a" }
+        logInfof("ytdlp_download_done job_id=%s duration_ms=%d src=%s", job.ID, time.Since(t1).Milliseconds(), srcPath)
+        // Convert from local file
+        logInfof("ffmpeg_start job_id=%s mode=%s timeout=%s", job.ID, FFmpegMode, ffTimeout)
+        t1 = time.Now()
+        if err := convertStreamToMP3(srcPath, outputPath, ffTimeout); err != nil {
+            logErrorf("ffmpeg_error job_id=%s err=%v", job.ID, err)
+            handleJobFailure(job, err, "ffmpeg conversion failed")
+            atomic.AddInt64(&activeJobs, -1)
+            atomic.AddInt64(&failedJobs, 1)
+            return
+        }
+        _ = os.Remove(srcPath)
+    } else {
+        logInfof("ffmpeg_start job_id=%s mode=%s timeout=%s", job.ID, FFmpegMode, ffTimeout)
+        if err := convertStreamToMP3(audioURL, outputPath, ffTimeout); err != nil {
+            logErrorf("ffmpeg_error job_id=%s err=%v", job.ID, err)
+            handleJobFailure(job, err, "ffmpeg conversion failed")
+            atomic.AddInt64(&activeJobs, -1)
+            atomic.AddInt64(&failedJobs, 1)
+            return
+        }
     }
     logInfof("ffmpeg_done job_id=%s duration_ms=%d output=%s", job.ID, time.Since(t1).Milliseconds(), outputPath)
 
