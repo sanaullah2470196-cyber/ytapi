@@ -145,27 +145,48 @@ func getAudioStreamFromYTDLP(videoURL string) (string, *Metadata, error) {
 
 func downloadAudioWithYTDLP(videoURL, outputPath string, expectedExt string) error {
     // Build output template to desired path
-    // yt-dlp will add extension automatically; we write to a temp and rename
     ctxTimeout, cancel := context.WithTimeout(ctx, YTDLPDownloadTimeout)
     defer cancel()
-    // Prefer bestaudio; parallel fragment downloads
-    args := []string{"-f", "bestaudio[acodec!=none]/bestaudio", "-N", fmt.Sprintf("%d", YTDLPDownloadConcurrency),
+
+    // Helper to attempt a download with specific args
+    try := func(args []string) error {
+        cmd := exec.CommandContext(ctxTimeout, "yt-dlp", args...)
+        var stderr bytes.Buffer
+        cmd.Stderr = &stderr
+        if err := cmd.Run(); err != nil {
+            return fmt.Errorf("yt-dlp download error: %v | %s", err, strings.TrimSpace(stderr.String()))
+        }
+        return nil
+    }
+
+    // Attempt 1: configured args + strict bestaudio
+    args1 := []string{"-f", "bestaudio[acodec!=none]/bestaudio", "-N", fmt.Sprintf("%d", YTDLPDownloadConcurrency),
         "-o", outputPath + ".%(ext)s", "--no-playlist", "--no-warnings"}
     if YTDLPCookies != "" {
         if strings.HasPrefix(YTDLPCookies, "browser:") {
-            args = append(args, "--cookies-from-browser", strings.TrimPrefix(YTDLPCookies, "browser:"))
-        } else { args = append(args, "--cookies", YTDLPCookies) }
+            args1 = append(args1, "--cookies-from-browser", strings.TrimPrefix(YTDLPCookies, "browser:"))
+        } else { args1 = append(args1, "--cookies", YTDLPCookies) }
     }
-    if YTDLPExtraArgs != "" { args = append(args, strings.Fields(YTDLPExtraArgs)...)}
-    args = append(args, videoURL)
-    cmd := exec.CommandContext(ctxTimeout, "yt-dlp", args...)
-    var stderr bytes.Buffer
-    cmd.Stderr = &stderr
-    if err := cmd.Run(); err != nil {
-        return fmt.Errorf("yt-dlp download error: %v | %s", err, strings.TrimSpace(stderr.String()))
+    if YTDLPExtraArgs != "" { args1 = append(args1, strings.Fields(YTDLPExtraArgs)...)}
+    args1 = append(args1, videoURL)
+    if err := try(args1); err != nil {
+        // Attempt 2: minimal args, looser format selector
+        args2 := []string{"-f", "bestaudio/best", "-N", fmt.Sprintf("%d", YTDLPDownloadConcurrency),
+            "-o", outputPath + ".%(ext)s", "--no-playlist", "--no-warnings", videoURL}
+        if err2 := try(args2); err2 != nil {
+            // Attempt 3: force android client extractor
+            args3 := []string{"-f", "bestaudio/best", "--extractor-args", "youtube:player_client=android",
+                "-N", fmt.Sprintf("%d", YTDLPDownloadConcurrency), "-o", outputPath + ".%(ext)s",
+                "--no-playlist", "--no-warnings", videoURL}
+            if err3 := try(args3); err3 != nil {
+                return fmt.Errorf("%v | fallback1: %v | fallback2: %v", err, err2, err3)
+            }
+        }
     }
+
     // Try to find produced file with known extensions
     for _, ext := range []string{"m4a", "webm", "mp4", expectedExt} {
+        if ext == "" { continue }
         p := outputPath + "." + ext
         if _, err := os.Stat(p); err == nil { return nil }
     }
