@@ -58,7 +58,26 @@ func getAudioStreamFromYTDLP(videoURL string) (string, *Metadata, error) {
     cmd.Stdout = &stdout
     cmd.Stderr = &stderr
     if err := cmd.Run(); err != nil {
-        return "", nil, fmt.Errorf("yt-dlp metadata error: %v | %s", err, strings.TrimSpace(stderr.String()))
+        // Fallback 1: minimal args (strip extras)
+        var fb1Out, fb1Err bytes.Buffer
+        base := []string{"-J", "--no-warnings", "--skip-download", videoURL}
+        cmd2 := exec.CommandContext(ctxTimeout, "yt-dlp", base...)
+        cmd2.Stdout = &fb1Out
+        cmd2.Stderr = &fb1Err
+        if err2 := cmd2.Run(); err2 != nil {
+            // Fallback 2: try android client extractor
+            var fb2Out, fb2Err bytes.Buffer
+            base2 := []string{"-J", "--no-warnings", "--skip-download", "--extractor-args", "youtube:player_client=android", videoURL}
+            cmd3 := exec.CommandContext(ctxTimeout, "yt-dlp", base2...)
+            cmd3.Stdout = &fb2Out
+            cmd3.Stderr = &fb2Err
+            if err3 := cmd3.Run(); err3 != nil {
+                return "", nil, fmt.Errorf("yt-dlp metadata error: %v | %s | fb1: %v | %s | fb2: %v | %s", err, strings.TrimSpace(stderr.String()), err2, strings.TrimSpace(fb1Err.String()), err3, strings.TrimSpace(fb2Err.String()))
+            }
+            stdout = fb2Out
+        } else {
+            stdout = fb1Out
+        }
     }
 
     var info ytdlpInfo
