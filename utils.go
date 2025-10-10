@@ -104,6 +104,12 @@ func getDownloadsDiskMetrics() (total uint64, free uint64, used uint64, err erro
     return
 }
 
+// classify a duration limit error from yt-dlp helpers
+func isDurationExceededError(e error) bool {
+    if e == nil { return false }
+    return strings.Contains(e.Error(), "video duration exceeds max")
+}
+
 // YouTube helpers: extract video ID and canonicalize to watch URL
 func extractYouTubeVideoID(raw string) (string, bool) {
     u, err := neturl.Parse(raw)

@@ -39,7 +39,12 @@ func processJob(job *ConversionJob, workerID int) {
     audioURL, meta, err := getAudioStreamFromYTDLP(job.URL)
     if err != nil {
         logErrorf("ytdlp_error job_id=%s err=%v", job.ID, err)
-        handleJobFailure(job, err, "yt-dlp stream extraction failed")
+        if isDurationExceededError(err) {
+            updateJobStatus(job, StatusFailed, err.Error())
+            notifyJobCompletion(job)
+        } else {
+            handleJobFailure(job, err, "yt-dlp stream extraction failed")
+        }
         atomic.AddInt64(&activeJobs, -1)
         atomic.AddInt64(&failedJobs, 1)
         return
