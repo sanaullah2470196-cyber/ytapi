@@ -137,10 +137,10 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
                     "canonical_url": job.URL,
                 })
             } else {
+                // Do not surface immediate error; let background retries handle it.
                 json.NewEncoder(w).Encode(map[string]interface{}{
                     "job_id": jobID,
-                    "status": string(doneJob.Status),
-                    "error": doneJob.Error,
+                    "status": string(StatusProcessing),
                     "check_status_endpoint": fmt.Sprintf("http://localhost:8080/status/%s", jobID),
                     "canonical_url": job.URL,
                 })
