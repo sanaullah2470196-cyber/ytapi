@@ -14,6 +14,7 @@ import (
     "strings"
     "strconv"
     "sync"
+    "golang.org/x/time/rate"
 )
 
 func handleExtract(w http.ResponseWriter, r *http.Request) {
@@ -583,7 +584,9 @@ func handleAdminLiveOps(w http.ResponseWriter, r *http.Request) {
     async function pauseIntake(){ await fetch('/admin/api/pause', {method:'POST'}).then(()=>loadState()).catch(()=>{}); }
     async function resumeIntake(){ await fetch('/admin/api/resume', {method:'POST'}).then(()=>loadState()).catch(()=>{}); }
     async function clearQueue(){ await fetch('/admin/api/queue/clear',{method:'POST'}).then(()=>loadState()); }
-    async function loadState(){ const s = await fetch('/admin/api/state').then(r=>r.json()).catch(()=>({})); document.getElementById('state').textContent=JSON.stringify(s,null,2); }
+    async function bumpWorkers(delta){ await fetch('/admin/api/workers?delta='+delta,{method:'POST'}).then(()=>loadState()); }
+    async function setRate(){ const rps = document.getElementById('rps').value; const burst = document.getElementById('burst').value; await fetch('/admin/api/rate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rps:Number(rps),burst:Number(burst)})}); loadState(); }
+    async function loadState(){ const s = await fetch('/admin/api/state').then(r=>r.json()).catch(()=>({})); document.getElementById('state').textContent=JSON.stringify(s,null,2); document.getElementById('rps').value = s.rate_limit||''; document.getElementById('burst').value = s.burst||''; }
     window.onload = loadState;
     </script></head>
     <body class="bg-gray-50">
@@ -604,6 +607,23 @@ func handleAdminLiveOps(w http.ResponseWriter, r *http.Request) {
           <button onclick="pauseIntake()" class="px-3 py-2 bg-yellow-500 text-white rounded">Pause Intake</button>
           <button onclick="resumeIntake()" class="px-3 py-2 bg-green-600 text-white rounded">Resume Intake</button>
           <button onclick="clearQueue()" class="px-3 py-2 bg-red-600 text-white rounded">Clear Queue</button>
+        </div>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <h3 class="font-medium mb-2">Worker pool</h3>
+            <div class="flex gap-2">
+              <button onclick="bumpWorkers(1)" class="px-3 py-2 bg-blue-600 text-white rounded">+1</button>
+              <button onclick="bumpWorkers(-1)" class="px-3 py-2 bg-blue-600 text-white rounded">-1</button>
+            </div>
+          </div>
+          <div>
+            <h3 class="font-medium mb-2">Rate limit</h3>
+            <div class="flex items-center gap-2">
+              <input id="rps" class="border p-2 rounded w-24" placeholder="rps">
+              <input id="burst" class="border p-2 rounded w-24" placeholder="burst">
+              <button onclick="setRate()" class="px-3 py-2 bg-indigo-600 text-white rounded">Apply</button>
+            </div>
+          </div>
         </div>
         <h3 class="font-medium mt-4">State</h3>
         <pre id="state" class="text-sm bg-gray-100 p-3 rounded">{}</pre>
@@ -709,6 +729,8 @@ func handleAdminAPIState(w http.ResponseWriter, r *http.Request) {
         "active_jobs": atomic.LoadInt64(&activeJobs),
         "queued_jobs": atomic.LoadInt64(&queuedJobs),
         "workers": WorkerPoolSize,
+        "rate_limit": RequestsPerSecond,
+        "burst": BurstSize,
     }
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(state)
@@ -750,4 +772,36 @@ DONE:
     atomic.StoreInt64(&queuedJobs, 0)
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]int{"cleared": drained})
+}
+
+// Admin API: adjust worker pool size (delta +/-)
+func handleAdminAPIWorkers(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    deltaStr := r.URL.Query().Get("delta")
+    d, _ := strconv.Atoi(deltaStr)
+    if d == 0 { json.NewEncoder(w).Encode(map[string]int{"workers": WorkerPoolSize}); return }
+    // We can only grow pool by starting more goroutines; shrinking only affects new jobs
+    if d > 0 {
+        for i := 0; i < d; i++ { go startWorker(WorkerPoolSize + i) }
+        WorkerPoolSize += d
+    } else {
+        // reduce target size; workers check range on next start (best-effort)
+        if WorkerPoolSize + d > 0 { WorkerPoolSize += d }
+        if WorkerPoolSize < 1 { WorkerPoolSize = 1 }
+    }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]int{"workers": WorkerPoolSize})
+}
+
+// Admin API: adjust admission rate limiter
+func handleAdminAPIRate(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    var req struct{ RPS int `json:"rps"`; Burst int `json:"burst"` }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil { http.Error(w, "Bad JSON", http.StatusBadRequest); return }
+    if req.RPS <= 0 || req.Burst <= 0 { http.Error(w, "Invalid values", http.StatusBadRequest); return }
+    RequestsPerSecond = req.RPS
+    BurstSize = req.Burst
+    rateLimiter = rate.NewLimiter(rate.Limit(RequestsPerSecond), BurstSize)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]int{"rps": RequestsPerSecond, "burst": BurstSize})
 }
