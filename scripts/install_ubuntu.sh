@@ -198,8 +198,8 @@ FFMPEG_MAX_TIMEOUT=$(prompt_duration "ffmpeg maximum timeout" "90m")
 # yt-dlp tuning
 echo
 echo "=== yt-dlp Tuning (optional) ==="
-echo "Extra yt-dlp args (space separated), e.g.: --ignore-config --force-ipv4 --socket-timeout 5 --retries 1"
-YTDLP_EXTRA_ARGS=$(read_with_default "YTDLP extra args" "--ignore-config --force-ipv4 --socket-timeout 5 --retries 1 --extractor-args youtube:player_client=ios")
+echo "Extra yt-dlp args (space separated), keep minimal for speed"
+YTDLP_EXTRA_ARGS=$(read_with_default "YTDLP extra args" "--ignore-config --force-ipv4 --socket-timeout 5 --retries 1")
 echo "Extractor args (single string), e.g.: youtube:player_client=ios"
 YTDLP_EXTRACTOR_ARGS=$(read_with_default "YTDLP extractor args" "")
 echo "Cookies (browser:chrome | path to cookies.txt | blank)"
@@ -210,12 +210,12 @@ echo
 echo "=== Download-then-Convert Strategy ==="
 echo "Always download audio first? If false, only long videos download first."
 ALWAYS_DOWNLOAD=$(read_with_default "Always download before convert? (true/false)" "true")
-echo "If duration >= threshold, download first (e.g., 10m; 0s to disable threshold)."
-DOWNLOAD_THRESHOLD=$(prompt_duration "Download threshold" "10m")
-YTDLP_DOWNLOAD_CONCURRENCY=$(prompt_int "yt-dlp download concurrency (-N)" "8")
+echo "If duration >= threshold, download first (0s to always download)."
+DOWNLOAD_THRESHOLD=$(prompt_duration "Download threshold" "0s")
+YTDLP_DOWNLOAD_CONCURRENCY=$(prompt_int "yt-dlp download concurrency (-N)" "12")
 FFMPEG_MODE=$(read_with_default "FFmpeg mode (CBR/VBR)" "VBR")
-FFMPEG_VBR_Q=$(prompt_int "FFmpeg VBR quality (0..9, lower=better)" "5")
-FFMPEG_THREADS=$(prompt_int "FFmpeg threads (0=auto)" "2")
+FFMPEG_VBR_Q=$(prompt_int "FFmpeg VBR quality (0..9, lower=better)" "7")
+FFMPEG_THREADS=$(prompt_int "FFmpeg threads (0=auto)" "4")
 
 # Retry backoff
 echo
