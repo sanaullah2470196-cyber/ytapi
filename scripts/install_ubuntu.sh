@@ -205,6 +205,12 @@ YTDLP_EXTRACTOR_ARGS=$(read_with_default "YTDLP extractor args" "")
 echo "Cookies (browser:chrome | path to cookies.txt | blank)"
 YTDLP_COOKIES=$(read_with_default "YTDLP cookies" "")
 
+# Skip metadata fetch for fastest starts
+echo
+echo "=== Metadata Fetch ==="
+echo "Skip yt-dlp metadata (-J) and start immediately with direct audio URL."
+SKIP_METADATA=$(read_with_default "Skip metadata? (true/false)" "true")
+
 # Download-then-convert strategy
 echo
 echo "=== Download-then-Convert Strategy ==="
@@ -349,6 +355,7 @@ FFMPEG_MAX_TIMEOUT='${FFMPEG_MAX_TIMEOUT}'
 YTDLP_EXTRA_ARGS='${YTDLP_EXTRA_ARGS}'
 YTDLP_EXTRACTOR_ARGS='${YTDLP_EXTRACTOR_ARGS}'
 YTDLP_COOKIES='${YTDLP_COOKIES}'
+SKIP_METADATA='${SKIP_METADATA}'
 ALWAYS_DOWNLOAD='${ALWAYS_DOWNLOAD}'
 DOWNLOAD_THRESHOLD='${DOWNLOAD_THRESHOLD}'
 YTDLP_DOWNLOAD_CONCURRENCY=${YTDLP_DOWNLOAD_CONCURRENCY}
