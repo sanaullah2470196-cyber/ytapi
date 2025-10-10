@@ -2,6 +2,7 @@ package main
 
 import (
     "net/http"
+    "net"
     "strings"
     "time"
     "golang.org/x/time/rate"
@@ -19,6 +20,9 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
         ip := r.Header.Get("X-Real-IP")
         if ip == "" {
             ip = r.RemoteAddr
+        }
+        if host, _, err := net.SplitHostPort(ip); err == nil {
+            ip = host
         }
         ipLimiters.Lock()
         lim, ok := ipLimiters.m[ip]

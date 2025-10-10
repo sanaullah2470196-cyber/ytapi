@@ -116,7 +116,10 @@ func handleExtract(w http.ResponseWriter, r *http.Request) {
         _ = saveIdempotencyKey(req.IdempotencyKey, jobID)
     }
     atomic.AddInt64(&queuedJobs, 1)
-    logInfof("queued job_id=%s queue_len=%d", jobID, atomic.LoadInt64(&queuedJobs))
+    // derive queue length from channel length for accuracy
+    qlen := len(jobQueue)
+    if qlen < 0 { qlen = 0 }
+    logInfof("queued job_id=%s queue_len=%d", jobID, qlen)
 
     resultCh := registerJobWaiter(jobID)
 
