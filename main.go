@@ -47,6 +47,7 @@ func main() {
     mux.HandleFunc("/admin/playground", basicAuthMiddleware(handleAdminPlayground))
     mux.HandleFunc("/admin/liveops", basicAuthMiddleware(handleAdminLiveOps))
     mux.HandleFunc("/admin/jobs", basicAuthMiddleware(handleAdminJobsPage))
+    mux.HandleFunc("/admin/docs", basicAuthMiddleware(handleAdminDocs))
     mux.HandleFunc("/admin/api/jobs", basicAuthMiddleware(handleAdminAPIJobsList))
     mux.HandleFunc("/admin/api/retry/", basicAuthMiddleware(handleAdminAPIRetry))
     mux.HandleFunc("/admin/api/cancel/", basicAuthMiddleware(handleAdminAPICancel))

@@ -344,6 +344,128 @@ func handleDocs(w http.ResponseWriter, r *http.Request) {
     </body></html>`)
 }
 
+// Admin Docs page with deployment, endpoints, and client examples
+func handleAdminDocs(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>API Docs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    </head><body class="bg-gray-50">
+    <div class="max-w-5xl mx-auto p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold">Full Documentation</h1>
+        <nav class="space-x-4 text-blue-600">
+          <a class="hover:underline" href="/admin">Home</a>
+          <a class="hover:underline" href="/admin/playground">API Playground</a>
+          <a class="hover:underline" href="/admin/liveops">Live Ops</a>
+          <a class="hover:underline" href="/admin/jobs">Jobs</a>
+          <a class="hover:underline" href="/admin/docs">Docs</a>
+        </nav>
+      </div>
+
+      <div class="prose max-w-none">
+        <h2>Deploy</h2>
+        <p>Ubuntu 24.04+ recommended. Run installer:</p>
+        <pre class="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto"><code>sudo bash scripts/install_ubuntu.sh
+# Follow prompts for workers, queue, CORS, Redis, etc.
+sudo systemctl status ytmp3-api
+sudo systemctl restart ytmp3-api
+# Logs
+journalctl -u ytmp3-api -f</code></pre>
+
+        <h2>Endpoints</h2>
+        <ul>
+          <li><code>POST /extract</code> { url, idempotency_key?, callback_url? }</li>
+          <li><code>GET /status/{job_id}</code></li>
+          <li><code>GET /download/{job_id}.mp3</code> (Range supported)</li>
+          <li><code>DELETE /delete/{job_id}</code></li>
+          <li><code>GET /health</code>, <code>/metrics</code>, <code>/metrics/prom</code>, <code>/stats</code></li>
+        </ul>
+        <p>If API key auth enabled, send header: <code>X-API-Key: YOUR_KEY</code>.</p>
+
+        <h2>cURL</h2>
+        <pre class="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto"><code># Create job
+curl -s -X POST http://localhost:8080/extract \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://www.youtube.com/watch?v=I7m7m4OMapE"}'
+
+# Poll status
+curl -s http://localhost:8080/status/JOB_ID
+
+# Download
+curl -L -o out.mp3 http://localhost:8080/download/JOB_ID.mp3
+
+# Delete
+curl -X DELETE http://localhost:8080/delete/JOB_ID</code></pre>
+
+        <h2>React (fetch)</h2>
+        <pre class="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto"><code>async function start(url){
+  const r = await fetch('/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  const {job_id} = await r.json();
+  let status;
+  do {
+    await new Promise(r=>setTimeout(r,2000));
+    status = await fetch('/status/'+job_id).then(r=>r.json());
+  } while(status.status !== 'completed' && status.status !== 'failed');
+  if(status.download_url) window.location = status.download_url;
+}</code></pre>
+
+        <h2>Vanilla JS</h2>
+        <pre class="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto"><code>fetch('/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
+ .then(r=>r.json()).then(({job_id})=>{
+   const t=setInterval(async()=>{
+     const s=await fetch('/status/'+job_id).then(r=>r.json());
+     if(s.status==='completed'){ clearInterval(t); location=s.download_url; }
+   },2000);
+ });</code></pre>
+
+        <h2>Node.js (axios)</h2>
+        <pre class="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto"><code>const axios = require('axios');
+async function run(){
+  const {data:{job_id}} = await axios.post('http://localhost:8080/extract',{url:'YOUTUBE_URL'});
+  while(true){
+    const {data:s} = await axios.get('http://localhost:8080/status/'+job_id);
+    if(s.status==='completed'){ console.log(s.download_url); break; }
+    await new Promise(r=>setTimeout(r,2000));
+  }
+}
+run();</code></pre>
+
+        <h2>Python (requests)</h2>
+        <pre class="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto"><code>import time, requests
+r = requests.post('http://localhost:8080/extract', json={'url': 'YOUTUBE_URL'})
+job_id = r.json()['job_id']
+while True:
+    s = requests.get(f'http://localhost:8080/status/{job_id}').json()
+    if s['status'] in ('completed','failed'):
+        print(s)
+        break
+    time.sleep(2)</code></pre>
+
+        <h2>PHP (cURL)</h2>
+        <pre class="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto"><code><?php
+$ch = curl_init('http://localhost:8080/extract');
+curl_setopt_array($ch,[CURLOPT_POST=>1,CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode(['url'=>'YOUTUBE_URL']),CURLOPT_RETURNTRANSFER=>1]);
+$resp = json_decode(curl_exec($ch), true);
+$job = $resp['job_id'];
+do {
+  sleep(2);
+  $s = json_decode(file_get_contents('http://localhost:8080/status/'.$job), true);
+} while(!in_array($s['status'], ['completed','failed']));
+if(isset($s['download_url'])) header('Location: '.$s['download_url']);
+?></code></pre>
+
+        <h2>Configuration notes</h2>
+        <ul>
+          <li>CORS via <code>ALLOWED_ORIGINS</code></li>
+          <li>Auth via <code>REQUIRE_API_KEY</code>, send <code>X-API-Key</code></li>
+          <li>Performance: <code>WORKER_POOL_SIZE</code>, <code>YTDLP_* </code>, <code>FFMPEG_* </code></li>
+        </ul>
+      </div>
+    </div>
+    </body></html>`)
+}
+
 func handleDocsFrontend(w http.ResponseWriter, r *http.Request) {
     enableCORS(w, r)
     if r.Method != http.MethodGet { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
@@ -383,6 +505,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
           <a class="hover:underline" href="/admin/playground">API Playground</a>
           <a class="hover:underline" href="/admin/liveops">Live Ops</a>
           <a class="hover:underline" href="/admin/jobs">Jobs</a>
+          <a class="hover:underline" href="/admin/docs">Docs</a>
         </nav>
       </div>
       <p class="mb-4 text-gray-600">Live server state, health, and metrics.</p>
@@ -433,6 +556,7 @@ func handleAdminPlayground(w http.ResponseWriter, r *http.Request) {
           <a class="hover:underline" href="/admin/playground">API Playground</a>
           <a class="hover:underline" href="/admin/liveops">Live Ops</a>
           <a class="hover:underline" href="/admin/jobs">Jobs</a>
+          <a class="hover:underline" href="/admin/docs">Docs</a>
         </nav>
       </div>
       <div class="bg-white rounded shadow p-4 mb-6">
@@ -471,6 +595,7 @@ func handleAdminLiveOps(w http.ResponseWriter, r *http.Request) {
           <a class="hover:underline" href="/admin/playground">API Playground</a>
           <a class="hover:underline" href="/admin/liveops">Live Ops</a>
           <a class="hover:underline" href="/admin/jobs">Jobs</a>
+          <a class="hover:underline" href="/admin/docs">Docs</a>
         </nav>
       </div>
       <div class="bg-white rounded shadow p-4">
@@ -517,6 +642,7 @@ func handleAdminJobsPage(w http.ResponseWriter, r *http.Request) {
           <a class="hover:underline" href="/admin/playground">API Playground</a>
           <a class="hover:underline" href="/admin/liveops">Live Ops</a>
           <a class="hover:underline" href="/admin/jobs">Jobs</a>
+          <a class="hover:underline" href="/admin/docs">Docs</a>
         </nav>
       </div>
       <div class="bg-white rounded shadow p-4">
