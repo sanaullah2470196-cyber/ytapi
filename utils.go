@@ -10,6 +10,7 @@ import (
     "strings"
     neturl "net/url"
     "time"
+    "path/filepath"
 )
 
 func setupGracefulShutdown() {
@@ -87,6 +88,20 @@ func getAvgProcessingTime() float64 {
         return 0
     }
     return float64(totalProcessingTimeNs) / float64(c) / 1e9
+}
+
+// disk metrics for downloads directory
+func getDownloadsDiskMetrics() (total uint64, free uint64, used uint64, err error) {
+    dir := "downloads"
+    abs, _ := filepath.Abs(dir)
+    var stat syscall.Statfs_t
+    if e := syscall.Statfs(abs, &stat); e != nil {
+        return 0, 0, 0, e
+    }
+    total = stat.Blocks * uint64(stat.Bsize)
+    free = stat.Bavail * uint64(stat.Bsize)
+    used = total - free
+    return
 }
 
 // YouTube helpers: extract video ID and canonicalize to watch URL

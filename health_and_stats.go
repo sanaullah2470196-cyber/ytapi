@@ -33,6 +33,13 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func handleMetrics(w http.ResponseWriter, r *http.Request) {
     enableCORS(w, r)
+    // Disk metrics
+    total, free, used, _ := getDownloadsDiskMetrics()
+    // Download folder counts best-effort
+    jobStore.RLock()
+    filesCount := 0
+    jobCount := len(jobStore.jobs)
+    jobStore.RUnlock()
     metrics := map[string]interface{}{
         "active_jobs":    atomic.LoadInt64(&activeJobs),
         "queued_jobs":    atomic.LoadInt64(&queuedJobs),
@@ -44,6 +51,11 @@ func handleMetrics(w http.ResponseWriter, r *http.Request) {
         "uptime_seconds": time.Since(serverStartTime).Seconds(),
         "success_rate":   calculateSuccessRate(),
         "avg_processing_s": getAvgProcessingTime(),
+        "downloads_disk_total_bytes": total,
+        "downloads_disk_used_bytes":  used,
+        "downloads_disk_free_bytes":  free,
+        "downloads_files_count":      filesCount,
+        "jobs_in_memory":             jobCount,
     }
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(metrics)
