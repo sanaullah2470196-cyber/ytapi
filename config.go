@@ -73,6 +73,9 @@ var (
     FFmpegCBRBitrate = "192k"  // used when CBR
     FFmpegVBRQ       = 5        // used when VBR (0..9, lower=better)
     FFmpegThreads    = 0        // 0 = auto
+
+    // Skip metadata (-J) and start immediately
+    SkipMetadata = false
 )
 
 func envInt(key string, def int) int {
@@ -165,4 +168,7 @@ func InitConfigFromEnv() {
     FFmpegCBRBitrate = envString("FFMPEG_CBR_BITRATE", FFmpegCBRBitrate)
     FFmpegVBRQ = envInt("FFMPEG_VBR_Q", FFmpegVBRQ)
     FFmpegThreads = envInt("FFMPEG_THREADS", FFmpegThreads)
+
+    // Skip metadata
+    SkipMetadata = envString("SKIP_METADATA", "false") == "true"
 }
