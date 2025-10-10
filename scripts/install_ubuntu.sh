@@ -398,14 +398,14 @@ systemctl daemon-reload
 systemctl enable ${APP_NAME}.service
 systemctl restart ${APP_NAME}.service
 else
-  cat >"/usr/local/bin/${APP_NAME}-run" <<EOF
+  cat >"/usr/local/bin/${APP_NAME}-run" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-source ${ENV_FILE} || true
-cd ${INSTALL_DIR}
-nohup /usr/local/bin/ytmp3-api >${INSTALL_DIR}/ytmp3-api.log 2>&1 &
-echo $! > ${INSTALL_DIR}/ytmp3-api.pid
-echo "Started ytmp3-api (PID $(cat ${INSTALL_DIR}/ytmp3-api.pid))"
+source /etc/ytmp3-api.env || true
+cd /opt/ytmp3-api
+nohup /usr/local/bin/ytmp3-api >/opt/ytmp3-api/ytmp3-api.log 2>&1 &
+echo $! >/opt/ytmp3-api/ytmp3-api.pid
+echo "Started ytmp3-api (PID $(cat /opt/ytmp3-api/ytmp3-api.pid))"
 EOF
   chmod +x "/usr/local/bin/${APP_NAME}-run"
   "/usr/local/bin/${APP_NAME}-run" || true
